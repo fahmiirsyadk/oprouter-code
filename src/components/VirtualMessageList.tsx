@@ -708,6 +708,7 @@ export function VirtualMessageList({
       };
       startPtrRef.current = -1;
       setPositions?.(null);
+      if (q == null) return;
       const lq = q.toLowerCase();
       // One entry per MESSAGE (deduplicated). Boolean "does this msg
       // contain the query". ~10ms for 9k messages with cached lowered.

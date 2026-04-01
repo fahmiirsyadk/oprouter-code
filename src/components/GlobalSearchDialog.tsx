@@ -129,7 +129,7 @@ export function GlobalSearchDialog(t0) {
         clearTimeout(timeoutRef.current);
       }
       abortRef.current?.abort();
-      if (!q.trim()) {
+      if (!q?.trim()) {
         setMatches(_temp);
         setIsSearching(false);
         setTruncated(false);
