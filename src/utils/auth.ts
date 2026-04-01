@@ -1,5 +1,4 @@
 import chalk from 'chalk'
-import { exec } from 'child_process'
 import { execa } from 'execa'
 import { mkdir, stat } from 'fs/promises'
 import memoize from 'lodash-es/memoize.js'
@@ -9,7 +8,6 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from 'src/services/analytics/index.js'
-import { getModelStrings } from 'src/utils/model/modelStrings.js'
 import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from 'src/utils/model/providers.js'
 import {
   getIsNonInteractiveSession,
@@ -34,12 +32,6 @@ import {
   maybeRemoveApiKeyFromMacOSKeychainThrows,
   normalizeApiKeyForConfig,
 } from './authPortable.js'
-import {
-  checkStsCallerIdentity,
-  clearAwsIniCache,
-  isValidAwsStsOutput,
-} from './aws.js'
-import { AwsAuthStatusManager } from './awsAuthStatusManager.js'
 import { clearBetasCaches } from './betas.js'
 import {
   type AccountInfo,
@@ -390,50 +382,32 @@ function isApiKeyHelperFromProjectOrLocalSettings(): boolean {
  * Get the configured awsAuthRefresh from settings
  */
 function getConfiguredAwsAuthRefresh(): string | undefined {
-  const mergedSettings = getSettings_DEPRECATED() || {}
-  return mergedSettings.awsAuthRefresh
+  // AWS auth has been removed - Bedrock is no longer supported
+  return undefined
 }
 
 /**
  * Check if the configured awsAuthRefresh comes from project settings
  */
 export function isAwsAuthRefreshFromProjectSettings(): boolean {
-  const awsAuthRefresh = getConfiguredAwsAuthRefresh()
-  if (!awsAuthRefresh) {
-    return false
-  }
-
-  const projectSettings = getSettingsForSource('projectSettings')
-  const localSettings = getSettingsForSource('localSettings')
-  return (
-    projectSettings?.awsAuthRefresh === awsAuthRefresh ||
-    localSettings?.awsAuthRefresh === awsAuthRefresh
-  )
+  // AWS auth has been removed - Bedrock is no longer supported
+  return false
 }
 
 /**
  * Get the configured awsCredentialExport from settings
  */
 function getConfiguredAwsCredentialExport(): string | undefined {
-  const mergedSettings = getSettings_DEPRECATED() || {}
-  return mergedSettings.awsCredentialExport
+  // AWS credentials have been removed - Bedrock is no longer supported
+  return undefined
 }
 
 /**
  * Check if the configured awsCredentialExport comes from project settings
  */
 export function isAwsCredentialExportFromProjectSettings(): boolean {
-  const awsCredentialExport = getConfiguredAwsCredentialExport()
-  if (!awsCredentialExport) {
-    return false
-  }
-
-  const projectSettings = getSettingsForSource('projectSettings')
-  const localSettings = getSettingsForSource('localSettings')
-  return (
-    projectSettings?.awsCredentialExport === awsCredentialExport ||
-    localSettings?.awsCredentialExport === awsCredentialExport
-  )
+  // AWS credentials have been removed - Bedrock is no longer supported
+  return false
 }
 
 /**
@@ -619,92 +593,17 @@ const DEFAULT_AWS_STS_TTL = 60 * 60 * 1000
  * Streams output in real-time for user visibility
  */
 async function runAwsAuthRefresh(): Promise<boolean> {
-  const awsAuthRefresh = getConfiguredAwsAuthRefresh()
-
-  if (!awsAuthRefresh) {
-    return false // Not configured, treat as success
-  }
-
-  // SECURITY: Check if awsAuthRefresh is from project settings
-  if (isAwsAuthRefreshFromProjectSettings()) {
-    // Check if trust has been established for this project
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust && !getIsNonInteractiveSession()) {
-      const error = new Error(
-        `Security: awsAuthRefresh executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
-      )
-      logAntError('awsAuthRefresh invoked before trust check', error)
-      logEvent('tengu_awsAuthRefresh_missing_trust', {})
-      return false
-    }
-  }
-
-  try {
-    logForDebugging('Fetching AWS caller identity for AWS auth refresh command')
-    await checkStsCallerIdentity()
-    logForDebugging(
-      'Fetched AWS caller identity, skipping AWS auth refresh command',
-    )
-    return false
-  } catch {
-    // only actually do the refresh if caller-identity calls
-    return refreshAwsAuth(awsAuthRefresh)
-  }
+  // AWS auth has been removed - Bedrock is no longer supported
+  return false
 }
 
 // Timeout for AWS auth refresh command (3 minutes).
 // Long enough for browser-based SSO flows, short enough to prevent indefinite hangs.
 const AWS_AUTH_REFRESH_TIMEOUT_MS = 3 * 60 * 1000
 
-export function refreshAwsAuth(awsAuthRefresh: string): Promise<boolean> {
-  logForDebugging('Running AWS auth refresh command')
-  // Start tracking authentication status
-  const authStatusManager = AwsAuthStatusManager.getInstance()
-  authStatusManager.startAuthentication()
-
-  return new Promise(resolve => {
-    const refreshProc = exec(awsAuthRefresh, {
-      timeout: AWS_AUTH_REFRESH_TIMEOUT_MS,
-    })
-    refreshProc.stdout!.on('data', data => {
-      const output = data.toString().trim()
-      if (output) {
-        // Add output to status manager for UI display
-        authStatusManager.addOutput(output)
-        // Also log for debugging
-        logForDebugging(output, { level: 'debug' })
-      }
-    })
-
-    refreshProc.stderr!.on('data', data => {
-      const error = data.toString().trim()
-      if (error) {
-        authStatusManager.setError(error)
-        logForDebugging(error, { level: 'error' })
-      }
-    })
-
-    refreshProc.on('close', (code, signal) => {
-      if (code === 0) {
-        logForDebugging('AWS auth refresh completed successfully')
-        authStatusManager.endAuthentication(true)
-        void resolve(true)
-      } else {
-        const timedOut = signal === 'SIGTERM'
-        const message = timedOut
-          ? chalk.red(
-              'AWS auth refresh timed out after 3 minutes. Run your auth command manually in a separate terminal.',
-            )
-          : chalk.red(
-              'Error running awsAuthRefresh (in settings or ~/.claude.json):',
-            )
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message)
-        authStatusManager.endAuthentication(false)
-        void resolve(false)
-      }
-    })
-  })
+export function refreshAwsAuth(_awsAuthRefresh: string): Promise<boolean> {
+  // AWS auth has been removed - Bedrock is no longer supported
+  return Promise.resolve(false)
 }
 
 /**
@@ -716,76 +615,8 @@ async function getAwsCredsFromCredentialExport(): Promise<{
   secretAccessKey: string
   sessionToken: string
 } | null> {
-  const awsCredentialExport = getConfiguredAwsCredentialExport()
-
-  if (!awsCredentialExport) {
-    return null
-  }
-
-  // SECURITY: Check if awsCredentialExport is from project settings
-  if (isAwsCredentialExportFromProjectSettings()) {
-    // Check if trust has been established for this project
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust && !getIsNonInteractiveSession()) {
-      const error = new Error(
-        `Security: awsCredentialExport executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
-      )
-      logAntError('awsCredentialExport invoked before trust check', error)
-      logEvent('tengu_awsCredentialExport_missing_trust', {})
-      return null
-    }
-  }
-
-  try {
-    logForDebugging(
-      'Fetching AWS caller identity for credential export command',
-    )
-    await checkStsCallerIdentity()
-    logForDebugging(
-      'Fetched AWS caller identity, skipping AWS credential export command',
-    )
-    return null
-  } catch {
-    // only actually do the export if caller-identity calls
-    try {
-      logForDebugging('Running AWS credential export command')
-      const result = await execa(awsCredentialExport, {
-        shell: true,
-        reject: false,
-      })
-      if (result.exitCode !== 0 || !result.stdout) {
-        throw new Error('awsCredentialExport did not return a valid value')
-      }
-
-      // Parse the JSON output from aws sts commands
-      const awsOutput = jsonParse(result.stdout.trim())
-
-      if (!isValidAwsStsOutput(awsOutput)) {
-        throw new Error(
-          'awsCredentialExport did not return valid AWS STS output structure',
-        )
-      }
-
-      logForDebugging('AWS credentials retrieved from awsCredentialExport')
-      return {
-        accessKeyId: awsOutput.Credentials.AccessKeyId,
-        secretAccessKey: awsOutput.Credentials.SecretAccessKey,
-        sessionToken: awsOutput.Credentials.SessionToken,
-      }
-    } catch (e) {
-      const message = chalk.red(
-        'Error getting AWS credentials from awsCredentialExport (in settings or ~/.claude.json):',
-      )
-      if (e instanceof Error) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message, e.message)
-      } else {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message, e)
-      }
-      return null
-    }
-  }
+  // AWS credentials have been removed - Bedrock is no longer supported
+  return null
 }
 
 /**
@@ -799,49 +630,30 @@ export const refreshAndGetAwsCredentials = memoizeWithTTLAsync(
     secretAccessKey: string
     sessionToken: string
   } | null> => {
-    // First run auth refresh if needed
-    const refreshed = await runAwsAuthRefresh()
-
-    // Get credentials from export
-    const credentials = await getAwsCredsFromCredentialExport()
-
-    // Clear AWS INI cache to ensure fresh credentials are used
-    if (refreshed || credentials) {
-      await clearAwsIniCache()
-    }
-
-    return credentials
+    // AWS auth has been removed - Bedrock is no longer supported
+    return null
   },
   DEFAULT_AWS_STS_TTL,
 )
 
 export function clearAwsCredentialsCache(): void {
-  refreshAndGetAwsCredentials.cache.clear()
+  // No-op - AWS credentials cache is no longer used
 }
 
 /**
  * Get the configured gcpAuthRefresh from settings
  */
 function getConfiguredGcpAuthRefresh(): string | undefined {
-  const mergedSettings = getSettings_DEPRECATED() || {}
-  return mergedSettings.gcpAuthRefresh
+  // GCP auth has been removed - Vertex is no longer supported
+  return undefined
 }
 
 /**
  * Check if the configured gcpAuthRefresh comes from project settings
  */
 export function isGcpAuthRefreshFromProjectSettings(): boolean {
-  const gcpAuthRefresh = getConfiguredGcpAuthRefresh()
-  if (!gcpAuthRefresh) {
-    return false
-  }
-
-  const projectSettings = getSettingsForSource('projectSettings')
-  const localSettings = getSettingsForSource('localSettings')
-  return (
-    projectSettings?.gcpAuthRefresh === gcpAuthRefresh ||
-    localSettings?.gcpAuthRefresh === gcpAuthRefresh
-  )
+  // GCP auth has been removed - Vertex is no longer supported
+  return false
 }
 
 /** Short timeout for the GCP credentials probe. Without this, when no local
@@ -854,24 +666,8 @@ const GCP_CREDENTIALS_CHECK_TIMEOUT_MS = 5_000
  * This uses the same authentication chain that the Vertex SDK uses.
  */
 export async function checkGcpCredentialsValid(): Promise<boolean> {
-  try {
-    // Dynamically import to avoid loading google-auth-library unnecessarily
-    const { GoogleAuth } = await import('google-auth-library')
-    const auth = new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    })
-    const probe = (async () => {
-      const client = await auth.getClient()
-      await client.getAccessToken()
-    })()
-    const timeout = sleep(GCP_CREDENTIALS_CHECK_TIMEOUT_MS).then(() => {
-      throw new GcpCredentialsTimeoutError('GCP credentials check timed out')
-    })
-    await Promise.race([probe, timeout])
-    return true
-  } catch {
-    return false
-  }
+  // GCP credentials have been removed - Vertex is no longer supported
+  return false
 }
 
 /** Default GCP credential TTL - 1 hour to match typical ADC token lifetime */
@@ -882,97 +678,17 @@ const DEFAULT_GCP_CREDENTIAL_TTL = 60 * 60 * 1000
  * Streams output in real-time for user visibility
  */
 async function runGcpAuthRefresh(): Promise<boolean> {
-  const gcpAuthRefresh = getConfiguredGcpAuthRefresh()
-
-  if (!gcpAuthRefresh) {
-    return false // Not configured, treat as success
-  }
-
-  // SECURITY: Check if gcpAuthRefresh is from project settings
-  if (isGcpAuthRefreshFromProjectSettings()) {
-    // Check if trust has been established for this project
-    // Pass true to indicate this is a dangerous feature that requires trust
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust && !getIsNonInteractiveSession()) {
-      const error = new Error(
-        `Security: gcpAuthRefresh executed before workspace trust is confirmed. If you see this message, post in ${MACRO.FEEDBACK_CHANNEL}.`,
-      )
-      logAntError('gcpAuthRefresh invoked before trust check', error)
-      logEvent('tengu_gcpAuthRefresh_missing_trust', {})
-      return false
-    }
-  }
-
-  try {
-    logForDebugging('Checking GCP credentials validity for auth refresh')
-    const isValid = await checkGcpCredentialsValid()
-    if (isValid) {
-      logForDebugging(
-        'GCP credentials are valid, skipping auth refresh command',
-      )
-      return false
-    }
-  } catch {
-    // Credentials check failed, proceed with refresh
-  }
-
-  return refreshGcpAuth(gcpAuthRefresh)
+  // GCP auth has been removed - Vertex is no longer supported
+  return false
 }
 
 // Timeout for GCP auth refresh command (3 minutes).
 // Long enough for browser-based auth flows, short enough to prevent indefinite hangs.
 const GCP_AUTH_REFRESH_TIMEOUT_MS = 3 * 60 * 1000
 
-export function refreshGcpAuth(gcpAuthRefresh: string): Promise<boolean> {
-  logForDebugging('Running GCP auth refresh command')
-  // Start tracking authentication status. AwsAuthStatusManager is cloud-provider-agnostic
-  // despite the name — print.ts emits its updates as generic SDK 'auth_status' messages.
-  const authStatusManager = AwsAuthStatusManager.getInstance()
-  authStatusManager.startAuthentication()
-
-  return new Promise(resolve => {
-    const refreshProc = exec(gcpAuthRefresh, {
-      timeout: GCP_AUTH_REFRESH_TIMEOUT_MS,
-    })
-    refreshProc.stdout!.on('data', data => {
-      const output = data.toString().trim()
-      if (output) {
-        // Add output to status manager for UI display
-        authStatusManager.addOutput(output)
-        // Also log for debugging
-        logForDebugging(output, { level: 'debug' })
-      }
-    })
-
-    refreshProc.stderr!.on('data', data => {
-      const error = data.toString().trim()
-      if (error) {
-        authStatusManager.setError(error)
-        logForDebugging(error, { level: 'error' })
-      }
-    })
-
-    refreshProc.on('close', (code, signal) => {
-      if (code === 0) {
-        logForDebugging('GCP auth refresh completed successfully')
-        authStatusManager.endAuthentication(true)
-        void resolve(true)
-      } else {
-        const timedOut = signal === 'SIGTERM'
-        const message = timedOut
-          ? chalk.red(
-              'GCP auth refresh timed out after 3 minutes. Run your auth command manually in a separate terminal.',
-            )
-          : chalk.red(
-              'Error running gcpAuthRefresh (in settings or ~/.claude.json):',
-            )
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message)
-        authStatusManager.endAuthentication(false)
-        void resolve(false)
-      }
-    })
-  })
+export function refreshGcpAuth(_gcpAuthRefresh: string): Promise<boolean> {
+  // GCP auth has been removed - Vertex is no longer supported
+  return Promise.resolve(false)
 }
 
 /**
@@ -982,15 +698,14 @@ export function refreshGcpAuth(gcpAuthRefresh: string): Promise<boolean> {
  */
 export const refreshGcpCredentialsIfNeeded = memoizeWithTTLAsync(
   async (): Promise<boolean> => {
-    // Run auth refresh if needed
-    const refreshed = await runGcpAuthRefresh()
-    return refreshed
+    // GCP auth has been removed - Vertex is no longer supported
+    return false
   },
   DEFAULT_GCP_CREDENTIAL_TTL,
 )
 
 export function clearGcpCredentialsCache(): void {
-  refreshGcpCredentialsIfNeeded.cache.clear()
+  // No-op - GCP credentials cache is no longer used
 }
 
 /**
@@ -1001,25 +716,7 @@ export function clearGcpCredentialsCache(): void {
  * Returns void to prevent misuse - use refreshGcpCredentialsIfNeeded() to actually refresh.
  */
 export function prefetchGcpCredentialsIfSafe(): void {
-  // Check if gcpAuthRefresh is configured
-  const gcpAuthRefresh = getConfiguredGcpAuthRefresh()
-
-  if (!gcpAuthRefresh) {
-    return
-  }
-
-  // Check if gcpAuthRefresh is from project settings
-  if (isGcpAuthRefreshFromProjectSettings()) {
-    // Only prefetch if trust has already been established
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust && !getIsNonInteractiveSession()) {
-      // Don't prefetch - wait for trust to be established first
-      return
-    }
-  }
-
-  // Safe to prefetch - either not from project settings or trust already established
-  void refreshGcpCredentialsIfNeeded()
+  // GCP auth has been removed - Vertex is no longer supported
 }
 
 /**
@@ -1030,30 +727,7 @@ export function prefetchGcpCredentialsIfSafe(): void {
  * Returns void to prevent misuse - use refreshAndGetAwsCredentials() to actually retrieve credentials.
  */
 export function prefetchAwsCredentialsAndBedRockInfoIfSafe(): void {
-  // Check if either AWS command is configured
-  const awsAuthRefresh = getConfiguredAwsAuthRefresh()
-  const awsCredentialExport = getConfiguredAwsCredentialExport()
-
-  if (!awsAuthRefresh && !awsCredentialExport) {
-    return
-  }
-
-  // Check if either command is from project settings
-  if (
-    isAwsAuthRefreshFromProjectSettings() ||
-    isAwsCredentialExportFromProjectSettings()
-  ) {
-    // Only prefetch if trust has already been established
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust && !getIsNonInteractiveSession()) {
-      // Don't prefetch - wait for trust to be established first
-      return
-    }
-  }
-
-  // Safe to prefetch - either not from project settings or trust already established
-  void refreshAndGetAwsCredentials()
-  getModelStrings()
+  // AWS credentials have been removed - Bedrock is no longer supported
 }
 
 /** @private Use {@link getAnthropicApiKey} or {@link getAnthropicApiKeyWithSource} */
@@ -1739,11 +1413,8 @@ export function getSubscriptionName(): string {
 
 /** Check if using third-party services (Bedrock or Vertex or Foundry) */
 export function isUsing3PServices(): boolean {
-  return !!(
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-  )
+  // Bedrock, Vertex, and Foundry have been removed - always return false
+  return false
 }
 
 /**
