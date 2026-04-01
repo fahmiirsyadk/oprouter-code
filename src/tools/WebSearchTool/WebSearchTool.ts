@@ -174,22 +174,13 @@ export const WebSearchTool = buildTool({
       return true
     }
 
-    // Enable for Vertex AI with supported models (Claude 4.0+)
-    if (provider === 'vertex') {
-      const supportsWebSearch =
-        model.includes('claude-opus-4') ||
-        model.includes('claude-sonnet-4') ||
-        model.includes('claude-haiku-4')
+    // OpenAI-compatible: enable for Claude 4.0+ models
+    const supportsWebSearch =
+      model.includes('claude-opus-4') ||
+      model.includes('claude-sonnet-4') ||
+      model.includes('claude-haiku-4')
 
-      return supportsWebSearch
-    }
-
-    // Foundry only ships models that already support Web Search
-    if (provider === 'foundry') {
-      return true
-    }
-
-    return false
+    return supportsWebSearch
   },
   get inputSchema(): InputSchema {
     return inputSchema()

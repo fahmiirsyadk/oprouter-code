@@ -39,9 +39,6 @@ export function findThinkingTriggerPositions(text: string): Array<{
   end: number
 }> {
   const positions: Array<{ word: string; start: number; end: number }> = []
-  // Fresh /g literal each call — String.prototype.matchAll copies lastIndex
-  // from the source regex, so a shared instance would leak state from
-  // hasUltrathinkKeyword's .test() into this call on the next render.
   const matches = text.matchAll(/\bultrathink\b/gi)
 
   for (const match of matches) {
@@ -85,27 +82,19 @@ export function getRainbowColor(
   return colors[charIndex % colors.length]!
 }
 
-// TODO(inigo): add support for probing unknown models via API error detection
-// Provider-aware thinking support detection (aligns with modelSupportsISP in betas.ts)
+// Provider-aware thinking support detection
 export function modelSupportsThinking(model: string): boolean {
   const supported3P = get3PModelCapabilityOverride(model, 'thinking')
   if (supported3P !== undefined) {
     return supported3P
   }
-  if (process.env.USER_TYPE === 'ant') {
-    if (resolveAntModel(model.toLowerCase())) {
-      return true
-    }
-  }
-  // IMPORTANT: Do not change thinking support without notifying the model
-  // launch DRI and research. This can greatly affect model quality and bashing.
   const canonical = getCanonicalName(model)
   const provider = getAPIProvider()
-  // 1P and Foundry: all Claude 4+ models (including Haiku 4.5)
-  if (provider === 'foundry' || provider === 'firstParty') {
+  // 1P: all Claude 4+ models (including Haiku 4.5)
+  if (provider === 'firstParty') {
     return !canonical.includes('claude-3-')
   }
-  // 3P (Bedrock/Vertex): only Opus 4+ and Sonnet 4+
+  // OpenAI-compatible proxies: support Claude 4+ thinking models
   return canonical.includes('sonnet-4') || canonical.includes('opus-4')
 }
 
@@ -128,19 +117,10 @@ export function modelSupportsAdaptiveThinking(model: string): boolean {
   ) {
     return false
   }
-  // IMPORTANT: Do not change adaptive thinking support without notifying the
-  // model launch DRI and research. This can greatly affect model quality and
-  // bashing.
 
-  // Newer models (4.6+) are all trained on adaptive thinking and MUST have it
-  // enabled for model testing. DO NOT default to false for first party, otherwise
-  // we may silently degrade model quality.
-
-  // Default to true for unknown model strings on 1P and Foundry (because Foundry
-  // is a proxy). Do not default to true for other 3P as they have different formats
-  // for their model strings.
+  // Default to true for unknown model strings on 1P (safe fallback).
   const provider = getAPIProvider()
-  return provider === 'firstParty' || provider === 'foundry'
+  return provider === 'firstParty'
 }
 
 export function shouldEnableThinkingByDefault(): boolean {
@@ -153,10 +133,5 @@ export function shouldEnableThinkingByDefault(): boolean {
     return false
   }
 
-  // IMPORTANT: Do not change default thinking enabled value without notifying
-  // the model launch DRI and research. This can greatly affect model quality and
-  // bashing.
-
-  // Enable thinking by default unless explicitly disabled.
   return true
 }

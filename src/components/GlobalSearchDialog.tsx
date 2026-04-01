@@ -124,12 +124,13 @@ export function GlobalSearchDialog(t0) {
   let t6;
   if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
     t6 = q => {
-      setQuery(q);
+      const safeQuery = typeof q === "string" ? q : "";
+      setQuery(safeQuery);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       abortRef.current?.abort();
-      if (!q?.trim()) {
+      if (!safeQuery.trim()) {
         setMatches(_temp);
         setIsSearching(false);
         setTruncated(false);
@@ -139,12 +140,12 @@ export function GlobalSearchDialog(t0) {
       abortRef.current = controller_0;
       setIsSearching(true);
       setTruncated(false);
-      const queryLower = q.toLowerCase();
+      const queryLower = safeQuery.toLowerCase();
       setMatches(m_0 => {
         const filtered = m_0.filter(match => match.text.toLowerCase().includes(queryLower));
         return filtered.length === m_0.length ? m_0 : filtered;
       });
-      timeoutRef.current = setTimeout(_temp4, DEBOUNCE_MS, q, controller_0, setMatches, setTruncated, setIsSearching);
+      timeoutRef.current = setTimeout(_temp4, DEBOUNCE_MS, safeQuery, controller_0, setMatches, setTruncated, setIsSearching);
     };
     $[6] = t6;
   } else {
